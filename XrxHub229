@@ -1,0 +1,316 @@
+-- XRX Hub - Key UI simples (digite key; inválida -> kick; válida -> inicia hub)
+-- CONFIGURE AQUI A KEY ESPERADA:
+local EXPECTED_KEY = "G7aKxT92wQnL4sYh8ZrV" -- 20 chars (troque se quiser)
+
+-- serviços
+local Players = game:GetService("Players")
+local player = Players.LocalPlayer
+if not player then return end
+
+-- função de kick (mensagem exata)
+local function kickInvalid()
+	pcall(function() player:Kick("AKA Key system whitelist Failed,Check if key is correct!") end)
+end
+
+-- UI de key (aparece imediatamente)
+local function showKeyUI(onSuccess)
+	-- criar ScreenGui
+	local screen = Instance.new("ScreenGui")
+	screen.Name = "XRX_KeyUI"
+	screen.ResetOnSpawn = false
+	screen.Parent = game:GetService("CoreGui")
+
+	-- frame
+	local frame = Instance.new("Frame", screen)
+	frame.Size = UDim2.new(0, 420, 0, 150)
+	frame.Position = UDim2.new(0.5, -210, 0.45, -75)
+	frame.BackgroundColor3 = Color3.fromRGB(20, 20, 28)
+	frame.BorderSizePixel = 0
+	Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 10)
+
+	-- title
+	local title = Instance.new("TextLabel", frame)
+	title.Size = UDim2.new(1, 0, 0, 36)
+	title.Position = UDim2.new(0, 0, 0, 8)
+	title.BackgroundTransparency = 1
+	title.Font = Enum.Font.GothamBold
+	title.TextSize = 20
+	title.Text = "XRX Key System"
+	title.TextColor3 = Color3.fromRGB(230, 230, 255)
+
+	-- hint
+	local hint = Instance.new("TextLabel", frame)
+	hint.Size = UDim2.new(1, -40, 0, 24)
+	hint.Position = UDim2.new(0, 20, 0, 48)
+	hint.BackgroundTransparency = 1
+	hint.Font = Enum.Font.SourceSans
+	hint.TextSize = 14
+	hint.Text = "Digite a sua key (20 caracteres):"
+	hint.TextColor3 = Color3.fromRGB(190, 190, 200)
+
+	-- input
+	local input = Instance.new("TextBox", frame)
+	input.Size = UDim2.new(1, -80, 0, 36)
+	input.Position = UDim2.new(0, 20, 0, 76)
+	input.PlaceholderText = "XXXXXXXXXXXXXXXXXXXX"
+	input.ClearTextOnFocus = false
+	input.Text = ""
+	input.Font = Enum.Font.SourceSans
+	input.TextSize = 18
+	input.TextColor3 = Color3.fromRGB(240, 240, 240)
+	Instance.new("UICorner", input).CornerRadius = UDim.new(0, 6)
+
+	-- submit
+	local submit = Instance.new("TextButton", frame)
+	submit.Size = UDim2.new(0, 120, 0, 36)
+	submit.Position = UDim2.new(1, -140, 1, -16)
+	submit.Text = "Confirm"
+	submit.Font = Enum.Font.SourceSansBold
+	submit.TextSize = 16
+	submit.BackgroundColor3 = Color3.fromRGB(0, 120, 220)
+	submit.TextColor3 = Color3.fromRGB(255, 255, 255)
+	Instance.new("UICorner", submit).CornerRadius = UDim.new(0, 6)
+
+	-- cancel (kick)
+	local cancel = Instance.new("TextButton", frame)
+	cancel.Size = UDim2.new(0, 100, 0, 28)
+	cancel.Position = UDim2.new(0, 20, 1, -20)
+	cancel.Text = "Cancel"
+	cancel.Font = Enum.Font.SourceSans
+	cancel.TextSize = 14
+	cancel.BackgroundColor3 = Color3.fromRGB(90, 90, 90)
+	cancel.TextColor3 = Color3.fromRGB(230, 230, 230)
+	Instance.new("UICorner", cancel).CornerRadius = UDim.new(0, 6)
+
+	-- helper: trim
+	local function trim(s)
+		return s:gsub("^%s*(.-)%s*$", "%1")
+	end
+
+	-- processa key
+	local function processKey(k)
+		k = trim(k or "")
+		if k == EXPECTED_KEY then
+			-- sucesso: limpa UI e chama callback
+			pcall(function() screen:Destroy() end)
+			if type(onSuccess) == "function" then
+				task.spawn(onSuccess)
+			end
+		else
+			-- inválida: kick
+			kickInvalid()
+		end
+	end
+
+	-- conexões
+	submit.MouseButton1Click:Connect(function()
+		processKey(input.Text)
+	end)
+	input.FocusLost:Connect(function(enter)
+		if enter then processKey(input.Text) end
+	end)
+	cancel.MouseButton1Click:Connect(function()
+		kickInvalid()
+	end)
+end
+
+-- ===========================
+-- HUB (resto do seu script)
+-- ===========================
+local function startHub()
+	-- === código do hub (UI principal, autosteal, ragdoll, etc.) ===
+	-- Vou inserir aqui o hub que você pediu antes (limpo, sem set11/tweenToBase).
+	local RunService = game:GetService("RunService")
+	local TweenService = game:GetService("TweenService")
+	local char, hrp, humanoid
+	local SOUND_ID = "rbxassetid://4620812971"
+
+	local function refreshCharacter()
+		char = player.Character or player.CharacterAdded:Wait()
+		hrp = char:WaitForChild("HumanoidRootPart")
+		humanoid = char:WaitForChild("Humanoid")
+	end
+	refreshCharacter()
+
+	player.CharacterAdded:Connect(function()
+		task.wait(1)
+		refreshCharacter()
+	end)
+
+	-- sound helper
+	local function playSound()
+		local sound = Instance.new("Sound")
+		sound.SoundId = SOUND_ID
+		sound.Volume = 3
+		sound.PlayOnRemove = true
+		sound.Parent = workspace
+		sound:Destroy()
+	end
+
+	-- save pos
+	local savedCFrame = nil
+	local function savePosition()
+		if hrp then
+			savedCFrame = hrp.CFrame
+			print("[XRX] Saved CFrame:", tostring(savedCFrame))
+		end
+	end
+
+	-- ragdoll system
+	local motorBackup = {}
+	local function applyRagdoll()
+		if not char or not humanoid then return end
+		motorBackup = {}
+		pcall(function()
+			humanoid:ChangeState(Enum.HumanoidStateType.Physics)
+			humanoid.AutoRotate = false
+		end)
+		for _, joint in ipairs(char:GetDescendants()) do
+			if joint:IsA("Motor6D") then
+				pcall(function()
+					local s = Instance.new("BallSocketConstraint")
+					local a0 = Instance.new("Attachment")
+					local a1 = Instance.new("Attachment")
+					a0.CFrame = joint.C0
+					a1.CFrame = joint.C1
+					a0.Parent = joint.Part0
+					a1.Parent = joint.Part1
+					s.Attachment0 = a0
+					s.Attachment1 = a1
+					s.Parent = joint.Parent
+					s.LimitsEnabled = true
+					s.TwistLimitsEnabled = true
+					motorBackup[joint.Name] = {
+						P0=joint.Part0, P1=joint.Part1,
+						C0=joint.C0, C1=joint.C1, Parent=joint.Parent
+					}
+					joint:Destroy()
+				end)
+			end
+		end
+	end
+
+	local function removeRagdoll()
+		if not char then return end
+		for _, d in pairs(motorBackup) do
+			pcall(function()
+				local m = Instance.new("Motor6D")
+				m.Part0 = d.P0
+				m.Part1 = d.P1
+				m.C0 = d.C0
+				m.C1 = d.C1
+				m.Parent = d.Parent
+			end)
+		end
+		motorBackup = {}
+		pcall(function()
+			if humanoid then
+				humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)
+				humanoid.AutoRotate = true
+			end
+		end)
+		for _, it in ipairs(char:GetDescendants()) do
+			if it:IsA("BallSocketConstraint") or it:IsA("Attachment") then
+				pcall(function() it:Destroy() end)
+			end
+		end
+	end
+
+	-- autosteal (visual ragdoll teleport)
+	local function ragdollVisualTeleport(target)
+		if not hrp or not target then return end
+		local targetRoot = target:FindFirstChild("HumanoidRootPart")
+		if not targetRoot then return end
+
+		local sound = Instance.new("Sound", hrp)
+		sound.SoundId = SOUND_ID
+		sound:Play()
+
+		pcall(function() humanoid:ChangeState(Enum.HumanoidStateType.Physics) end)
+		task.wait(0.1)
+		pcall(function() humanoid:ChangeState(Enum.HumanoidStateType.GettingUp) end)
+
+		local oldParent = hrp.Parent
+		hrp.Parent = nil
+		hrp.CFrame = targetRoot.CFrame + Vector3.new(0, 3, 0)
+		task.wait(0.05)
+		hrp.Parent = oldParent
+
+		pcall(function() sound:Destroy() end)
+	end
+
+	-- simple UI (main)
+	local function createMainUI()
+		if player:FindFirstChild("PlayerGui") and player.PlayerGui:FindFirstChild("XRX_TWEEN_GUI") then return end
+		local parent = player:FindFirstChild("PlayerGui") or player:WaitForChild("PlayerGui",5)
+		if not parent then parent = game:GetService("CoreGui") end
+
+		local gui = Instance.new("ScreenGui", parent)
+		gui.Name = "XRX_TWEEN_GUI"
+		gui.ResetOnSpawn = false
+
+		local main = Instance.new("Frame", gui)
+		main.Size = UDim2.new(0,300,0,180)
+		main.Position = UDim2.new(0.5,-150,0.5,-90)
+		main.BackgroundColor3 = Color3.fromRGB(20,20,30)
+		main.Active = true
+		main.Draggable = true
+		Instance.new("UICorner", main).CornerRadius = UDim.new(0,12)
+
+		local title = Instance.new("TextLabel", main)
+		title.Size = UDim2.new(1,0,0,40)
+		title.BackgroundColor3 = Color3.fromRGB(25,25,35)
+		title.Font = Enum.Font.SourceSansBold
+		title.Text = "XRX Hub"
+		title.TextSize = 22
+		title.TextColor3 = Color3.fromRGB(255,255,255)
+		Instance.new("UICorner", title).CornerRadius = UDim.new(0,12)
+
+		local wm = Instance.new("TextLabel", main)
+		wm.Size = UDim2.new(1,-20,0,20)
+		wm.Position = UDim2.new(0,10,1,-30)
+		wm.BackgroundTransparency = 1
+		wm.Font = Enum.Font.SourceSans
+		wm.TextSize = 14
+		wm.TextXAlignment = Enum.TextXAlignment.Left
+		wm.Text = "@Script.brainrot28 on tiktok"
+		wm.TextColor3 = Color3.fromRGB(100,170,255)
+
+		local function makeButton(text, y, cb)
+			local btn = Instance.new("TextButton", main)
+			btn.Size = UDim2.new(0.8,0,0,36)
+			btn.Position = UDim2.new(0.1,0,y,0)
+			btn.BackgroundColor3 = Color3.fromRGB(0,80,200)
+			btn.TextColor3 = Color3.fromRGB(255,255,255)
+			btn.Font = Enum.Font.SourceSans
+			btn.TextSize = 18
+			btn.Text = text
+			Instance.new("UICorner", btn).CornerRadius = UDim.new(0,10)
+			btn.MouseButton1Click:Connect(cb)
+			return btn
+		end
+
+		makeButton("Save Pos", 0.25, function() 
+			if hrp then savedCFrame = hrp.CFrame; print("[XRX] Saved!") end
+		end)
+		makeButton("Autosteal", 0.6, function()
+			local target = nil
+			for _, plr in ipairs(Players:GetPlayers()) do
+				if plr ~= player and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
+					target = plr.Character
+					break
+				end
+			end
+			if target then ragdollVisualTeleport(target) end
+		end)
+	end
+
+	-- start hub UI
+	createMainUI()
+	print("[XRX] Hub started.")
+end
+
+-- show key UI and on success start hub
+showKeyUI(function()
+	startHub()
+end)
